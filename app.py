@@ -19,8 +19,9 @@ def queue_stats():
        <soapenv:Header/>
        <soapenv:Body>
           <ser:getStatistics>
-             <statisticType>ACDStatus</statisticType>
-          </ser:getStatistics>
+   <statisticType>AgentStatistics</statisticType>
+</ser:getStatistics>
+
        </soapenv:Body>
     </soapenv:Envelope>
     """
