@@ -19,9 +19,8 @@ def queue_stats():
        <soapenv:Header/>
        <soapenv:Body>
           <ser:getStatistics>
-   <statisticType>AgentStatistics</statisticType>
-</ser:getStatistics>
-
+               <statisticType>ACDStatus</statisticType>
+          </ser:getStatistics>
        </soapenv:Body>
     </soapenv:Envelope>
     """
@@ -41,13 +40,20 @@ def queue_stats():
         root = ET.fromstring(response.text)
 
         # Pull the first two <data> elements for demo purposes
-        data_values = [elem.text for elem in root.iter() if elem.tag.endswith('data')]
-        if len(data_values) >= 2:
-            skill = data_values[0]
-            calls_in_queue = data_values[1]
-            text = f"*Skill:* {skill}\n*Calls in Queue:* {calls_in_queue}"
+        rows = []
+        for row in root.iter():
+        if row.tag.endswith('values'):
+        values = [v.text for v in row if v.tag.endswith('data')]
+        if values:
+            rows.append(values)
+
+        if rows:
+        text = "*Five9 Queue Stats:*\n"
+        for row in rows:
+        text += " • " + " | ".join(row) + "\n"
         else:
-            text = "No data found."
+        text = "No usable rows found in the response."
+
 
     except Exception as e:
         text = f"Error contacting Five9: {str(e)}"
