@@ -26,6 +26,20 @@ def format_time(time_str):
     return f"{minutes}m{seconds}s"
 
 
+def format_wait(raw_val):
+    try:
+        if raw_val.isdigit():
+            total_seconds = int(raw_val)
+            if total_seconds > 3600:
+                total_seconds = total_seconds // 1000
+            minutes = total_seconds // 60
+            seconds = total_seconds % 60
+            return f"{minutes}m{seconds}s"
+        return format_time(raw_val)
+    except:
+        return raw_val
+
+
 def fetch_stats_and_respond(response_url, username, password):
     try:
         auth = base64.b64encode(f"{username}:{password}".encode()).decode()
@@ -94,7 +108,7 @@ def fetch_stats_and_respond(response_url, username, password):
             ready = row[4] if len(row) > 4 else "?"
             calls_in_queue = row[6] if len(row) > 6 else "?"
             queue_callbacks = row[10] if len(row) > 10 else "?"
-            longest_wait_time = format_time(row[8]) if len(row) > 8 else "?"
+            longest_wait_time = format_wait(row[8]) if len(row) > 8 else "?"
             service_level = row[11] if len(row) > 11 else "?"
 
             try:
@@ -116,13 +130,13 @@ def fetch_stats_and_respond(response_url, username, password):
 
             blocks.append({"type": "section", "text": {"type": "mrkdwn", "text": block_text}})
 
-        # Fetch campaign statistics
+        # Fetch campaign performance statistics
         campaign_body = """
         <soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:ser="http://service.supervisor.ws.five9.com/">
            <soapenv:Header/>
            <soapenv:Body>
               <ser:getStatistics>
-                 <statisticType>CampaignState</statisticType>
+                 <statisticType>CampaignPerformance</statisticType>
               </ser:getStatistics>
            </soapenv:Body>
         </soapenv:Envelope>
@@ -140,37 +154,7 @@ def fetch_stats_and_respond(response_url, username, password):
             blocks.append({"type": "section", "text": {"type": "mrkdwn", "text": "*\ud83d\udcde Campaign Performance Stats*"}})
 
             for row in campaign_rows:
-                print(f"DEBUG - Campaign: {row[0] if len(row) > 0 else 'N/A'} - Full Row: {row}")
-                campaign = row[0] if len(row) > 0 else "N/A"
-                if campaign != "Zipcar Inbound - 866-4ZIPCAR":
-                    continue
-
-                asa = format_time(row[11]) if len(row) > 11 else "?"
-                aht = format_time(row[12]) if len(row) > 12 else "?"
-                abandon_rate = row[15] if len(row) > 15 else "?"
-                service_level = row[16] if len(row) > 16 else "?"
-
-                try:
-                    sl_val = float(service_level)
-                    service_level = f"{round(sl_val * 100)}%" if sl_val <= 1 else f"{round(sl_val)}%"
-                except:
-                    service_level = f"{service_level}%"
-
-                try:
-                    ar_val = float(abandon_rate)
-                    abandon_rate = f"{round(ar_val * 100)}%" if ar_val <= 1 else f"{round(ar_val)}%"
-                except:
-                    abandon_rate = f"{abandon_rate}%"
-
-                block_text = (
-                    f"*\ud83d\udcbc {campaign}*\n"
-                    f"\u2022 \u23f3 ASA: {asa}\n"
-                    f"\u2022 \u231b AHT: {aht}\n"
-                    f"\u2022 \ud83d\udeab Abandon Rate: {abandon_rate}\n"
-                    f"\u2022 \ud83d\udcc8 Service Level: {service_level}"
-                )
-
-                blocks.append({"type": "section", "text": {"type": "mrkdwn", "text": block_text}})
+                print(f"DEBUG - Campaign Performance Row: {row}")
 
         if not rows and not campaign_rows:
             blocks = [{"type": "section", "text": {"type": "mrkdwn", "text": "\u26a0\ufe0f No queue or campaign stats available at the moment."}}]
