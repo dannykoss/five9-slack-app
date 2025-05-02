@@ -8,8 +8,6 @@ app = Flask(__name__)
 
 @app.route("/queue-stats", methods=["POST"])
 def queue_stats():
-    slack_token = request.form.get("token")
-
     username = os.environ.get("FIVE9_USERNAME")
     password = os.environ.get("FIVE9_PASSWORD")
     auth = base64.b64encode(f"{username}:{password}".encode()).decode()
@@ -19,7 +17,7 @@ def queue_stats():
        <soapenv:Header/>
        <soapenv:Body>
           <ser:getStatistics>
-               <statisticType>ACDStatus</statisticType>
+             <statisticType>AgentStatistics</statisticType>
           </ser:getStatistics>
        </soapenv:Body>
     </soapenv:Envelope>
@@ -37,28 +35,19 @@ def queue_stats():
             headers=headers,
             timeout=10
         )
-        root = ET.fromstring(response.text)
 
-        # Pull the first two <data> elements for demo purposes
-        rows = []
-        for row in root.iter():
-            if row.tag.endswith('values'):
-                values = [v.text for v in row if v.tag.endswith('data')]
-                if values:
-                    rows.append(values)
+        # Return the raw response XML to Slack (trimmed to 3000 characters)
+        raw = response.text.strip().replace("\n", "").replace("  ", "")
+        if len(raw) > 2900:
+            raw = raw[:2900] + "..."
 
-        if rows:
-            text = "*Five9 Queue Stats:*\n"
-            for row in rows:
-                text += " • " + " | ".join(row) + "\n"
-        else:
-            text = "No usable rows found in the response."
-
+        return jsonify({
+            "response_type": "ephemeral",
+            "text": f"```\n{raw}\n```"
+        })
 
     except Exception as e:
-        text = f"Error contacting Five9: {str(e)}"
-
-    return jsonify({
-        "response_type": "in_channel",
-        "text": text
-    })
+        return jsonify({
+            "response_type": "ephemeral",
+            "text": f"Error: {str(e)}"
+        })
