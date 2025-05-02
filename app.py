@@ -35,6 +35,15 @@ def fetch_stats_and_respond(response_url, username, password):
         "Authorization": f"Basic {auth}"
     }
 
+    excluded_skills = [
+    "[Default]",
+    "Training",
+    "Five9 - Test Only",
+    "Skill Name",
+    "Zipcar - Internal Support",
+    "CCI - Fleet"
+]
+
     # Step 1: Set session
     session_body = """
     <soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:ser="http://service.supervisor.ws.five9.com/">
@@ -97,26 +106,33 @@ def fetch_stats_and_respond(response_url, username, password):
 
         for row in rows:
             skill = row[0] if len(row) > 0 else "N/A"
+            on_call = row[4] if len(row) > 4 else "?"
+            not_ready = row[5] if len(row) > 5 else "?"
+            ready = row[6] if len(row) > 6 else "?"
             calls_in_queue = row[1] if len(row) > 1 else "?"
-            agents_available = row[3] if len(row) > 3 else "?"
-            avg_wait_time = format_time(row[7]) if len(row) > 7 else "?"
-            service_level = row[11] if len(row) > 11 else "?"
             queue_callbacks = row[14] if len(row) > 14 else "?"
             longest_wait_time = format_time(row[15]) if len(row) > 15 else "?"
+            service_level = row[11] if len(row) > 11 else "?"
 
             try:
-                service_level = f"{round(float(service_level))}%"
+                sl_val = float(service_level)
+                if sl_val <= 1:
+                    service_level = f"{round(sl_val * 100)}%"
+                else:
+                    service_level = f"{round(sl_val)}%"
             except:
                 service_level = f"{service_level}%"
 
+
             block_text = (
-                f"*📛 {skill}*\n"
-                f"• ✅ Agents Available: {agents_available}\n"
+                f"*{skill}*\n"
+                f"• 👥 Agents On Call: {on_call}\n"
+                f"• ⛔ Agents Not Ready: {not_ready}\n"
+                f"• 🟢 Agents Ready: {ready}\n"
                 f"• ☎️ Calls in Queue: {calls_in_queue}\n"
                 f"• 🔁 Queue Callbacks: {queue_callbacks}\n"
-                f"• ⏳ Avg Wait Time: {avg_wait_time}\n"
-                f"• 🕒 Longest Wait: {longest_wait_time}"
-                f"• 📈 Service Level: {service_level}\n"
+                f"• 🕒 Longest Wait: {longest_wait_time}\n"
+                f"• 📈 Service Level: {service_level}"
             )
 
             blocks.append({
