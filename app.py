@@ -45,7 +45,7 @@ def fetch_stats_and_respond(response_url, username, password):
        <soapenv:Header/>
        <soapenv:Body>
           <ser:getStatistics>
-             <statisticType>AgentStatistics</statisticType>
+             <statisticType>ACDStatus</statisticType>
           </ser:getStatistics>
        </soapenv:Body>
     </soapenv:Envelope>
