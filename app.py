@@ -12,7 +12,44 @@ def queue_stats():
     password = os.environ.get("FIVE9_PASSWORD")
     auth = base64.b64encode(f"{username}:{password}".encode()).decode()
 
-    soap_body = f"""
+    headers = {
+        "Content-Type": "text/xml;charset=UTF-8",
+        "Authorization": f"Basic {auth}"
+    }
+
+    # Step 1: Set session
+    session_body = """
+    <soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:ser="http://service.supervisor.ws.five9.com/">
+       <soapenv:Header/>
+       <soapenv:Body>
+          <ser:setSessionParameters>
+             <viewSettings>
+                <forceLogoutSession>true</forceLogoutSession>
+                <rollingPeriod>Minutes30</rollingPeriod>
+                <shiftStart>28800000</shiftStart>
+                <statisticsRange>CurrentWeek</statisticsRange>
+                <timeZone>-25200000</timeZone>
+             </viewSettings>
+          </ser:setSessionParameters>
+       </soapenv:Body>
+    </soapenv:Envelope>
+    """
+
+    response1 = requests.post(
+        "https://api.five9.com/wssupervisor/SupervisorWebService",
+        data=session_body,
+        headers=headers,
+        timeout=10
+    )
+
+    if "Fault" in response1.text:
+        return jsonify({
+            "response_type": "ephemeral",
+            "text": "Failed to set session. Cannot continue."
+        })
+
+    # Step 2: Get statistics
+    stats_body = """
     <soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:ser="http://service.supervisor.ws.five9.com/">
        <soapenv:Header/>
        <soapenv:Body>
@@ -23,31 +60,30 @@ def queue_stats():
     </soapenv:Envelope>
     """
 
-    headers = {
-        "Content-Type": "text/xml;charset=UTF-8",
-        "Authorization": f"Basic {auth}"
-    }
+    response2 = requests.post(
+        "https://api.five9.com/wssupervisor/SupervisorWebService",
+        data=stats_body,
+        headers=headers,
+        timeout=10
+    )
 
-    try:
-        response = requests.post(
-            "https://api.five9.com/wssupervisor/SupervisorWebService",
-            data=soap_body,
-            headers=headers,
-            timeout=10
-        )
+    # Try to parse at least some output
+    root = ET.fromstring(response2.text)
+    rows = []
+    for row in root.iter():
+        if row.tag.endswith('values'):
+            values = [v.text for v in row if v.tag.endswith('data')]
+            if values:
+                rows.append(values)
 
-        # Return the raw response XML to Slack (trimmed to 3000 characters)
-        raw = response.text.strip().replace("\n", "").replace("  ", "")
-        if len(raw) > 2900:
-            raw = raw[:2900] + "..."
+    if rows:
+        text = "*Five9 Agent Stats:*\n"
+        for row in rows:
+            text += " • " + " | ".join(row) + "\n"
+    else:
+        text = "No usable data found."
 
-        return jsonify({
-            "response_type": "ephemeral",
-            "text": f"```\n{raw}\n```"
-        })
-
-    except Exception as e:
-        return jsonify({
-            "response_type": "ephemeral",
-            "text": f"Error: {str(e)}"
-        })
+    return jsonify({
+        "response_type": "in_channel",
+        "text": text
+    })
