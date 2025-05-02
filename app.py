@@ -72,7 +72,7 @@ def queue_stats():
     rows = []
     for row in root.iter():
         if row.tag.endswith('values'):
-            values = [v.text for v in row if v.tag.endswith('data')]
+            values = [v.text if v.text is not None else "" for v in row if v.tag.endswith('data')]
             if values:
                 rows.append(values)
 
