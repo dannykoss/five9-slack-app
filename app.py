@@ -25,7 +25,6 @@ def format_time(time_str):
     seconds = total_seconds % 60
     return f"{minutes}m{seconds}s"
 
-
 def format_wait(raw_val):
     try:
         if raw_val.isdigit():
@@ -143,6 +142,9 @@ def fetch_stats_and_respond(response_url, username, password):
         """
 
         campaign_res = requests.post("https://api.five9.com/wssupervisor/SupervisorWebService", data=campaign_body, headers=headers, timeout=10)
+        print("DEBUG - CampaignPerformance XML Response:")
+        print(campaign_res.text)
+
         campaign_root = ET.fromstring(campaign_res.text)
         campaign_rows = [
             [v.text if v.text is not None else "" for v in row if v.tag.endswith('data')]
