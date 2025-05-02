@@ -39,10 +39,6 @@ def fetch_stats_and_respond(response_url, username, password):
         "Zipcar - Internal Support", "CCI - Fleet"
     ]
 
-    included_campaigns = [
-        "Zipcar Inbound - 866-4ZIPCAR"
-    ]
-
     session_body = """
     <soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:ser="http://service.supervisor.ws.five9.com/">
        <soapenv:Header/>
@@ -143,8 +139,10 @@ def fetch_stats_and_respond(response_url, username, password):
         blocks.append({"type": "section", "text": {"type": "mrkdwn", "text": "*\ud83d\udcde Campaign Performance Stats*"}})
 
         for row in campaign_rows:
+            print(f"DEBUG - Campaign: {row[0] if len(row) > 0 else 'N/A'} - Full Row: {row}")  # 👈 Place it here
+
             campaign = row[0] if len(row) > 0 else "N/A"
-            if campaign in included_campaigns:
+            if campaign != "Zipcar Inbound - 866-4ZIPCAR":
                 continue
 
             asa = format_time(row[5]) if len(row) > 5 else "?"
