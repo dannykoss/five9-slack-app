@@ -87,6 +87,25 @@ def fetch_stats_and_respond(response_url, username, password):
         timeout=10
     )
 
+    campaign_body = """
+    <soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:ser="http://service.supervisor.ws.five9.com/">
+       <soapenv:Header/>
+       <soapenv:Body>
+          <ser:getStatistics>
+             <statisticType>CampaignState</statisticType>
+          </ser:getStatistics>
+       </soapenv:Body>
+    </soapenv:Envelope>
+    """
+
+    campaign_res = requests.post(
+        "https://api.five9.com/wssupervisor/SupervisorWebService",
+        data=campaign_body,
+        headers=headers,
+        timeout=10
+    )
+
+
     root = ET.fromstring(res.text)
     rows = []
     for row in root.iter():
@@ -95,13 +114,21 @@ def fetch_stats_and_respond(response_url, username, password):
             if values:
                 rows.append(values)
 
+    campaign_root = ET.fromstring(campaign_res.text)
+    campaign_rows = []
+    for row in campaign_root.iter():
+        if row.tag.endswith("values"):
+            values = [v.text if v.text is not None else "" for v in row if v.tag.endswith("data")]
+            if values:
+                campaign_rows.append(values)
+
+    
     if rows:
         blocks = [
             {
                 "type": "section",
                 "text": {"type": "mrkdwn", "text": "*📊 Five9 Queue Stats*"}
             },
-            {"type": "divider"}
         ]
 
         for row in rows:
@@ -109,12 +136,12 @@ def fetch_stats_and_respond(response_url, username, password):
             skill = row[0] if len(row) > 0 else "N/A"
             if skill in excluded_skills:
                 continue
-            on_call = row[4] if len(row) > 4 else "?"
-            not_ready = row[5] if len(row) > 5 else "?"
-            ready = row[6] if len(row) > 6 else "?"
-            calls_in_queue = row[1] if len(row) > 1 else "?"
-            queue_callbacks = row[14] if len(row) > 14 else "?"
-            longest_wait_time = format_time(row[15]) if len(row) > 15 else "?"
+            on_call = row[3] if len(row) > 3 else "?"
+            not_ready = row[2] if len(row) > 2 else "?"
+            ready = row[4] if len(row) > 4 else "?"
+            calls_in_queue = row[6] if len(row) > 6 else "?"
+            queue_callbacks = row[10] if len(row) > 10 else "?"
+            longest_wait_time = format_time(row[8]) if len(row) > 8 else "?"
             service_level = row[11] if len(row) > 11 else "?"
 
             try:
@@ -153,6 +180,44 @@ def fetch_stats_and_respond(response_url, username, password):
         "response_type": "in_channel",
         "blocks": blocks
     })
+
+    if campaign_rows:
+    blocks.append({"type": "divider"})
+    blocks.append({
+        "type": "section",
+        "text": {"type": "mrkdwn", "text": "*📞 Campaign Performance Stats*"}
+    })
+
+    for row in campaign_rows:
+        campaign = row[0] if len(row) > 0 else "N/A"
+        asa = row[5] if len(row) > 5 else "?"
+        aht = row[6] if len(row) > 6 else "?"
+        service_level = row[9] if len(row) > 9 else "?"
+        abandon_rate = row[7] if len(row) > 7 else "?"
+
+        try:
+            service_level = f"{round(float(service_level) * 100)}%" if float(service_level) <= 1 else f"{round(float(service_level))}%"
+        except:
+            service_level = f"{service_level}%"
+
+        try:
+            abandon_rate = f"{round(float(abandon_rate) * 100)}%" if float(abandon_rate) <= 1 else f"{round(float(abandon_rate))}%"
+        except:
+            abandon_rate = f"{abandon_rate}%"
+
+        block_text = (
+            f"*{campaign}*\n"
+            f"• ⏳ ASA: {asa}\n"
+            f"• ⌛ AHT: {aht}\n"
+            f"• 📈 Service Level: {service_level}\n"
+            f"• 🚫 Abandon Rate: {abandon_rate}"
+        )
+
+        blocks.append({
+            "type": "section",
+            "text": {"type": "mrkdwn", "text": block_text}
+        })
+
 
 
 @app.route("/queue-stats", methods=["POST"])
