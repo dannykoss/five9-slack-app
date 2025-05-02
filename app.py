@@ -1,11 +1,31 @@
-import threading
-from flask import Flask, request, jsonify
-import requests
 import os
 import base64
+import requests
+import threading
 import xml.etree.ElementTree as ET
+from flask import Flask, request, jsonify
 
 app = Flask(__name__)
+
+
+def format_time(time_str):
+    """Convert HH:MM:SS or MM:SS to XmYs format"""
+    if not time_str or time_str == "00:00:00":
+        return "0m0s"
+    parts = time_str.split(":")
+    if len(parts) == 3:
+        hours, minutes, seconds = map(int, parts)
+        total_seconds = hours * 3600 + minutes * 60 + seconds
+    elif len(parts) == 2:
+        minutes, seconds = map(int, parts)
+        total_seconds = minutes * 60 + seconds
+    else:
+        return time_str  # fallback
+
+    minutes = total_seconds // 60
+    seconds = total_seconds % 60
+    return f"{minutes}m{seconds}s"
+
 
 def fetch_stats_and_respond(response_url, username, password):
     auth = base64.b64encode(f"{username}:{password}".encode()).decode()
@@ -39,7 +59,7 @@ def fetch_stats_and_respond(response_url, username, password):
         timeout=10
     )
 
-    # Step 2: Get statistics
+    # Step 2: Get ACDStatus stats
     stats_body = """
     <soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:ser="http://service.supervisor.ws.five9.com/">
        <soapenv:Header/>
@@ -67,17 +87,54 @@ def fetch_stats_and_respond(response_url, username, password):
                 rows.append(values)
 
     if rows:
-        text = "*Five9 Agent Stats:*\n"
-        for row in rows:
-            text += " • " + " | ".join(row) + "\n"
-    else:
-        text = "No data available."
+        blocks = [
+            {
+                "type": "section",
+                "text": {"type": "mrkdwn", "text": "*📊 Five9 Queue Stats*"}
+            },
+            {"type": "divider"}
+        ]
 
-    # Send follow-up to Slack
+        for row in rows:
+            skill = row[0] if len(row) > 0 else "N/A"
+            calls_in_queue = row[1] if len(row) > 1 else "?"
+            agents_available = row[3] if len(row) > 3 else "?"
+            avg_wait_time = format_time(row[7]) if len(row) > 7 else "?"
+            service_level = row[11] if len(row) > 11 else "?"
+            queue_callbacks = row[14] if len(row) > 14 else "?"
+            longest_wait_time = format_time(row[15]) if len(row) > 15 else "?"
+
+            try:
+                service_level = f"{round(float(service_level))}%"
+            except:
+                service_level = f"{service_level}%"
+
+            block_text = (
+                f"*📛 {skill}*\n"
+                f"• ✅ Agents Available: {agents_available}\n"
+                f"• ☎️ Calls in Queue: {calls_in_queue}\n"
+                f"• 🔁 Queue Callbacks: {queue_callbacks}\n"
+                f"• ⏳ Avg Wait Time: {avg_wait_time}\n"
+                f"• 🕒 Longest Wait: {longest_wait_time}"
+                f"• 📈 Service Level: {service_level}\n"
+            )
+
+            blocks.append({
+                "type": "section",
+                "text": {"type": "mrkdwn", "text": block_text}
+            })
+    else:
+        blocks = [{
+            "type": "section",
+            "text": {"type": "mrkdwn", "text": "⚠️ No queue stats available at the moment."}
+        }]
+
+    # Send message to Slack
     requests.post(response_url, json={
         "response_type": "in_channel",
-        "text": text
+        "blocks": blocks
     })
+
 
 @app.route("/queue-stats", methods=["POST"])
 def queue_stats():
@@ -85,11 +142,11 @@ def queue_stats():
     username = os.environ.get("FIVE9_USERNAME")
     password = os.environ.get("FIVE9_PASSWORD")
 
-    # Do the long-running work in a background thread
+    # Start the background job to avoid Slack timeout
     threading.Thread(target=fetch_stats_and_respond, args=(response_url, username, password)).start()
 
-    # Respond quickly to Slack
+    # Immediate response to Slack
     return jsonify({
         "response_type": "ephemeral",
-        "text": "🔄 Fetching Five9 stats... please wait a moment."
+        "text": "🔄 Fetching Five9 queue stats… please wait."
     })
