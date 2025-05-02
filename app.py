@@ -105,7 +105,10 @@ def fetch_stats_and_respond(response_url, username, password):
         ]
 
         for row in rows:
+            print(f"DEBUG - Skill: {row[0] if len(row) > 0 else 'N/A'} - Full Row: {row}")
             skill = row[0] if len(row) > 0 else "N/A"
+            if skill in excluded_skills:
+                continue
             on_call = row[4] if len(row) > 4 else "?"
             not_ready = row[5] if len(row) > 5 else "?"
             ready = row[6] if len(row) > 6 else "?"
