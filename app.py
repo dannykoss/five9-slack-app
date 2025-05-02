@@ -27,128 +27,75 @@ def format_time(time_str):
 
 
 def fetch_stats_and_respond(response_url, username, password):
-    auth = base64.b64encode(f"{username}:{password}".encode()).decode()
+    try:
+        auth = base64.b64encode(f"{username}:{password}".encode()).decode()
 
-    headers = {
-        "Content-Type": "text/xml;charset=UTF-8",
-        "Authorization": f"Basic {auth}"
-    }
+        headers = {
+            "Content-Type": "text/xml;charset=UTF-8",
+            "Authorization": f"Basic {auth}"
+        }
 
-    excluded_skills = [
-        "[Default]", "Training", "Five9 - Test Only", "Skill Name",
-        "Zipcar - Internal Support", "CCI - Fleet"
-    ]
+        excluded_skills = [
+            "[Default]", "Training", "Five9 - Test Only", "Skill Name",
+            "Zipcar - Internal Support", "CCI - Fleet"
+        ]
 
-    session_body = """
-    <soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:ser="http://service.supervisor.ws.five9.com/">
-       <soapenv:Header/>
-       <soapenv:Body>
-          <ser:setSessionParameters>
-             <viewSettings>
-                <forceLogoutSession>true</forceLogoutSession>
-                <rollingPeriod>Minutes30</rollingPeriod>
-                <shiftStart>28800000</shiftStart>
-                <statisticsRange>CurrentWeek</statisticsRange>
-                <timeZone>-25200000</timeZone>
-             </viewSettings>
-          </ser:setSessionParameters>
-       </soapenv:Body>
-    </soapenv:Envelope>
-    """
-    requests.post("https://api.five9.com/wssupervisor/SupervisorWebService", data=session_body, headers=headers, timeout=10)
+        session_body = """
+        <soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:ser="http://service.supervisor.ws.five9.com/">
+           <soapenv:Header/>
+           <soapenv:Body>
+              <ser:setSessionParameters>
+                 <viewSettings>
+                    <forceLogoutSession>true</forceLogoutSession>
+                    <rollingPeriod>Minutes30</rollingPeriod>
+                    <shiftStart>28800000</shiftStart>
+                    <statisticsRange>CurrentWeek</statisticsRange>
+                    <timeZone>-25200000</timeZone>
+                 </viewSettings>
+              </ser:setSessionParameters>
+           </soapenv:Body>
+        </soapenv:Envelope>
+        """
+        requests.post("https://api.five9.com/wssupervisor/SupervisorWebService", data=session_body, headers=headers, timeout=10)
 
-    stats_body = """
-    <soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:ser="http://service.supervisor.ws.five9.com/">
-       <soapenv:Header/>
-       <soapenv:Body>
-          <ser:getStatistics>
-             <statisticType>ACDStatus</statisticType>
-          </ser:getStatistics>
-       </soapenv:Body>
-    </soapenv:Envelope>
-    """
+        stats_body = """
+        <soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:ser="http://service.supervisor.ws.five9.com/">
+           <soapenv:Header/>
+           <soapenv:Body>
+              <ser:getStatistics>
+                 <statisticType>ACDStatus</statisticType>
+              </ser:getStatistics>
+           </soapenv:Body>
+        </soapenv:Envelope>
+        """
 
-    res = requests.post("https://api.five9.com/wssupervisor/SupervisorWebService", data=stats_body, headers=headers, timeout=10)
-    root = ET.fromstring(res.text)
-    rows = [
-        [v.text if v.text is not None else "" for v in row if v.tag.endswith('data')]
-        for row in root.iter() if row.tag.endswith('values')
-    ]
+        res = requests.post("https://api.five9.com/wssupervisor/SupervisorWebService", data=stats_body, headers=headers, timeout=10)
+        root = ET.fromstring(res.text)
+        rows = [
+            [v.text if v.text is not None else "" for v in row if v.tag.endswith('data')]
+            for row in root.iter() if row.tag.endswith('values')
+        ]
 
-    blocks = [
-        {"type": "section", "text": {"type": "mrkdwn", "text": "*\ud83d\udcca Five9 Queue Stats*"}},
-        {"type": "divider"}
-    ]
+        blocks = [
+            {"type": "section", "text": {"type": "mrkdwn", "text": "*\ud83d\udcca Five9 Queue Stats*"}},
+            {"type": "divider"}
+        ]
 
-    for row in rows:
-        if row[0] == "Skill Name" or "Agents Logged In" in row:
-            continue
-
-        skill = row[0]
-        if skill in excluded_skills:
-            continue
-
-        on_call = row[3] if len(row) > 3 else "?"
-        not_ready = row[2] if len(row) > 2 else "?"
-        ready = row[4] if len(row) > 4 else "?"
-        calls_in_queue = row[6] if len(row) > 6 else "?"
-        queue_callbacks = row[10] if len(row) > 10 else "?"
-        longest_wait_time = format_time(row[8]) if len(row) > 8 else "?"
-        service_level = row[11] if len(row) > 11 else "?"
-
-        try:
-            sl_val = float(service_level)
-            service_level = f"{round(sl_val * 100)}%" if sl_val <= 1 else f"{round(sl_val)}%"
-        except:
-            service_level = f"{service_level}%"
-
-        block_text = (
-            f"*{skill}*\n"
-            f"\u2022 \ud83d\udc65 Agents On Call: {on_call}\n"
-            f"\u2022 \u26d4 Agents Not Ready: {not_ready}\n"
-            f"\u2022 \ud83d\udfe2 Agents Ready: {ready}\n"
-            f"\u2022 \u260e\ufe0f Calls in Queue: {calls_in_queue}\n"
-            f"\u2022 \ud83d\udd01 Queue Callbacks: {queue_callbacks}\n"
-            f"\u2022 \ud83d\udd52 Longest Wait: {longest_wait_time}\n"
-            f"\u2022 \ud83d\udcc8 Service Level: {service_level}"
-        )
-
-        blocks.append({"type": "section", "text": {"type": "mrkdwn", "text": block_text}})
-
-    # Fetch campaign statistics
-    campaign_body = """
-    <soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:ser="http://service.supervisor.ws.five9.com/">
-       <soapenv:Header/>
-       <soapenv:Body>
-          <ser:getStatistics>
-             <statisticType>CampaignState</statisticType>
-          </ser:getStatistics>
-       </soapenv:Body>
-    </soapenv:Envelope>
-    """
-
-    campaign_res = requests.post("https://api.five9.com/wssupervisor/SupervisorWebService", data=campaign_body, headers=headers, timeout=10)
-    campaign_root = ET.fromstring(campaign_res.text)
-    campaign_rows = [
-        [v.text if v.text is not None else "" for v in row if v.tag.endswith('data')]
-        for row in campaign_root.iter() if row.tag.endswith('values')
-    ]
-
-    if campaign_rows:
-        blocks.append({"type": "divider"})
-        blocks.append({"type": "section", "text": {"type": "mrkdwn", "text": "*\ud83d\udcde Campaign Performance Stats*"}})
-
-        for row in campaign_rows:
-            print(f"DEBUG - Campaign: {row[0] if len(row) > 0 else 'N/A'} - Full Row: {row}")  # 👈 Place it here
-
-            campaign = row[0] if len(row) > 0 else "N/A"
-            if campaign != "Zipcar Inbound - 866-4ZIPCAR":
+        for row in rows:
+            if row[0] == "Skill Name" or "Agents Logged In" in row:
                 continue
 
-            asa = format_time(row[5]) if len(row) > 5 else "?"
-            aht = format_time(row[6]) if len(row) > 6 else "?"
-            abandon_rate = row[7] if len(row) > 7 else "?"
-            service_level = row[9] if len(row) > 9 else "?"
+            skill = row[0]
+            if skill in excluded_skills:
+                continue
+
+            on_call = row[3] if len(row) > 3 else "?"
+            not_ready = row[2] if len(row) > 2 else "?"
+            ready = row[4] if len(row) > 4 else "?"
+            calls_in_queue = row[6] if len(row) > 6 else "?"
+            queue_callbacks = row[10] if len(row) > 10 else "?"
+            longest_wait_time = format_time(row[8]) if len(row) > 8 else "?"
+            service_level = row[11] if len(row) > 11 else "?"
 
             try:
                 sl_val = float(service_level)
@@ -156,26 +103,86 @@ def fetch_stats_and_respond(response_url, username, password):
             except:
                 service_level = f"{service_level}%"
 
-            try:
-                ar_val = float(abandon_rate)
-                abandon_rate = f"{round(ar_val * 100)}%" if ar_val <= 1 else f"{round(ar_val)}%"
-            except:
-                abandon_rate = f"{abandon_rate}%"
-
             block_text = (
-                f"*\ud83d\udcbc {campaign}*\n"
-                f"\u2022 \u23f3 ASA: {asa}\n"
-                f"\u2022 \u231b AHT: {aht}\n"
-                f"\u2022 \ud83d\udeab Abandon Rate: {abandon_rate}\n"
+                f"*{skill}*\n"
+                f"\u2022 \ud83d\udc65 Agents On Call: {on_call}\n"
+                f"\u2022 \u26d4 Agents Not Ready: {not_ready}\n"
+                f"\u2022 \ud83d\udfe2 Agents Ready: {ready}\n"
+                f"\u2022 \u260e\ufe0f Calls in Queue: {calls_in_queue}\n"
+                f"\u2022 \ud83d\udd01 Queue Callbacks: {queue_callbacks}\n"
+                f"\u2022 \ud83d\udd52 Longest Wait: {longest_wait_time}\n"
                 f"\u2022 \ud83d\udcc8 Service Level: {service_level}"
             )
 
             blocks.append({"type": "section", "text": {"type": "mrkdwn", "text": block_text}})
 
-    if not rows and not campaign_rows:
-        blocks = [{"type": "section", "text": {"type": "mrkdwn", "text": "\u26a0\ufe0f No queue or campaign stats available at the moment."}}]
+        # Fetch campaign statistics
+        campaign_body = """
+        <soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:ser="http://service.supervisor.ws.five9.com/">
+           <soapenv:Header/>
+           <soapenv:Body>
+              <ser:getStatistics>
+                 <statisticType>CampaignState</statisticType>
+              </ser:getStatistics>
+           </soapenv:Body>
+        </soapenv:Envelope>
+        """
 
-    requests.post(response_url, json={"response_type": "in_channel", "blocks": blocks})
+        campaign_res = requests.post("https://api.five9.com/wssupervisor/SupervisorWebService", data=campaign_body, headers=headers, timeout=10)
+        campaign_root = ET.fromstring(campaign_res.text)
+        campaign_rows = [
+            [v.text if v.text is not None else "" for v in row if v.tag.endswith('data')]
+            for row in campaign_root.iter() if row.tag.endswith('values')
+        ]
+
+        if campaign_rows:
+            blocks.append({"type": "divider"})
+            blocks.append({"type": "section", "text": {"type": "mrkdwn", "text": "*\ud83d\udcde Campaign Performance Stats*"}})
+
+            for row in campaign_rows:
+                print(f"DEBUG - Campaign: {row[0] if len(row) > 0 else 'N/A'} - Full Row: {row}")
+                campaign = row[0] if len(row) > 0 else "N/A"
+                if campaign != "Zipcar Inbound - 866-4ZIPCAR":
+                    continue
+
+                asa = format_time(row[11]) if len(row) > 11 else "?"
+                aht = format_time(row[12]) if len(row) > 12 else "?"
+                abandon_rate = row[15] if len(row) > 15 else "?"
+                service_level = row[16] if len(row) > 16 else "?"
+
+                try:
+                    sl_val = float(service_level)
+                    service_level = f"{round(sl_val * 100)}%" if sl_val <= 1 else f"{round(sl_val)}%"
+                except:
+                    service_level = f"{service_level}%"
+
+                try:
+                    ar_val = float(abandon_rate)
+                    abandon_rate = f"{round(ar_val * 100)}%" if ar_val <= 1 else f"{round(ar_val)}%"
+                except:
+                    abandon_rate = f"{abandon_rate}%"
+
+                block_text = (
+                    f"*\ud83d\udcbc {campaign}*\n"
+                    f"\u2022 \u23f3 ASA: {asa}\n"
+                    f"\u2022 \u231b AHT: {aht}\n"
+                    f"\u2022 \ud83d\udeab Abandon Rate: {abandon_rate}\n"
+                    f"\u2022 \ud83d\udcc8 Service Level: {service_level}"
+                )
+
+                blocks.append({"type": "section", "text": {"type": "mrkdwn", "text": block_text}})
+
+        if not rows and not campaign_rows:
+            blocks = [{"type": "section", "text": {"type": "mrkdwn", "text": "\u26a0\ufe0f No queue or campaign stats available at the moment."}}]
+
+        requests.post(response_url, json={"response_type": "in_channel", "blocks": blocks})
+
+    except Exception as e:
+        print(f"ERROR in background thread: {str(e)}")
+        requests.post(response_url, json={
+            "response_type": "ephemeral",
+            "text": f"\u26a0\ufe0f Failed to fetch stats: {str(e)}"
+        })
 
 
 @app.route("/queue-stats", methods=["POST"])
