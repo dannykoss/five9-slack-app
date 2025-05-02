@@ -42,17 +42,17 @@ def queue_stats():
         # Pull the first two <data> elements for demo purposes
         rows = []
         for row in root.iter():
-        if row.tag.endswith('values'):
-        values = [v.text for v in row if v.tag.endswith('data')]
-        if values:
-            rows.append(values)
+            if row.tag.endswith('values'):
+                values = [v.text for v in row if v.tag.endswith('data')]
+                if values:
+                    rows.append(values)
 
         if rows:
-        text = "*Five9 Queue Stats:*\n"
-        for row in rows:
-        text += " • " + " | ".join(row) + "\n"
+            text = "*Five9 Queue Stats:*\n"
+            for row in rows:
+                text += " • " + " | ".join(row) + "\n"
         else:
-        text = "No usable rows found in the response."
+            text = "No usable rows found in the response."
 
 
     except Exception as e:
