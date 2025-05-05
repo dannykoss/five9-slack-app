@@ -54,13 +54,13 @@ def fetch_stats_and_respond(response_url, username, password):
         ]
 
         session_body = """
-        <soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:ser="http://service.supervisor.ws.five9.com/">
+        <soapenv:Envelope xmlns:soapenv=\"http://schemas.xmlsoap.org/soap/envelope/\" xmlns:ser=\"http://service.supervisor.ws.five9.com/\">
            <soapenv:Header/>
            <soapenv:Body>
               <ser:setSessionParameters>
                  <viewSettings>
                     <forceLogoutSession>true</forceLogoutSession>
-                    <rollingPeriod>Minutes30</rollingPeriod>
+                    <rollingPeriod>Today</rollingPeriod>
                     <shiftStart>28800000</shiftStart>
                     <statisticsRange>CurrentWeek</statisticsRange>
                     <timeZone>-25200000</timeZone>
@@ -72,7 +72,7 @@ def fetch_stats_and_respond(response_url, username, password):
         requests.post("https://api.five9.com/wssupervisor/SupervisorWebService", data=session_body, headers=headers, timeout=10)
 
         stats_body = """
-        <soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:ser="http://service.supervisor.ws.five9.com/">
+        <soapenv:Envelope xmlns:soapenv=\"http://schemas.xmlsoap.org/soap/envelope/\" xmlns:ser=\"http://service.supervisor.ws.five9.com/\">
            <soapenv:Header/>
            <soapenv:Body>
               <ser:getStatistics>
@@ -90,7 +90,7 @@ def fetch_stats_and_respond(response_url, username, password):
         ]
 
         blocks = [
-            {"type": "section", "text": {"type": "mrkdwn", "text": "*\ud83d\udcca Five9 Queue Stats*"}},
+            {"type": "section", "text": {"type": "mrkdwn", "text": "*\ud83d\udcca Five9 Queue Stats* _(Today ET)_"}},
             {"type": "divider"}
         ]
 
@@ -116,22 +116,21 @@ def fetch_stats_and_respond(response_url, username, password):
             except:
                 service_level = f"{service_level}%"
 
-            block_text = (
-                f"*{skill}*\n"
-                f"\u2022 \ud83d\udc65 Agents On Call: {on_call}\n"
-                f"\u2022 \u26d4 Agents Not Ready: {not_ready}\n"
-                f"\u2022 \ud83d\udfe2 Agents Ready: {ready}\n"
-                f"\u2022 \u260e\ufe0f Calls in Queue: {calls_in_queue}\n"
-                f"\u2022 \ud83d\udd01 Queue Callbacks: {queue_callbacks}\n"
-                f"\u2022 \ud83d\udd52 Longest Wait: {longest_wait_time}\n"
-                f"\u2022 \ud83d\udcc8 Service Level: {service_level}"
-            )
+            block_text = f"*{skill}* (_Service Level: {service_level}_)" + "\n" + \
+                ". Queue\n" + \
+                f"    ○ :telephone_receiver: Calls in Queue: {calls_in_queue}\n" + \
+                f"    ○ :repeat: Queue Callbacks: {queue_callbacks}\n" + \
+                f"    ○ :clock10: Longest Wait: {longest_wait_time}\n" + \
+                ". Availability\n" + \
+                f"    ○ :busts_in_silhouette: Agents On Call: {on_call}\n" + \
+                f"    ○ :no_entry: Agents Not Ready: {not_ready}\n" + \
+                f"    ○ :large_green_circle: Agents Ready: {ready}"
 
             blocks.append({"type": "section", "text": {"type": "mrkdwn", "text": block_text}})
 
         # Fetch campaign performance statistics
         campaign_body = """
-        <soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:ser="http://service.supervisor.ws.five9.com/">
+        <soapenv:Envelope xmlns:soapenv=\"http://schemas.xmlsoap.org/soap/envelope/\" xmlns:ser=\"http://service.supervisor.ws.five9.com/\">
            <soapenv:Header/>
            <soapenv:Body>
               <ser:getStatistics>
