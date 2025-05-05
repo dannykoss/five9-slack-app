@@ -117,11 +117,11 @@ def fetch_stats_and_respond(response_url, username, password):
                 service_level = f"{service_level}%"
 
             block_text = f"*{skill}* (_Service Level: {service_level}_)" + "\n" + \
-                ". Queue\n" + \
+                "• Queue\n" + \
                 f"    ○ :telephone_receiver: Calls in Queue: {calls_in_queue}\n" + \
                 f"    ○ :repeat: Queue Callbacks: {queue_callbacks}\n" + \
                 f"    ○ :clock10: Longest Wait: {longest_wait_time}\n" + \
-                ". Availability\n" + \
+                "• Availability\n" + \
                 f"    ○ :busts_in_silhouette: Agents On Call: {on_call}\n" + \
                 f"    ○ :no_entry: Agents Not Ready: {not_ready}\n" + \
                 f"    ○ :large_green_circle: Agents Ready: {ready}"
